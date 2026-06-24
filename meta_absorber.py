@@ -121,43 +121,41 @@ def setup(params, sim):
            
     return 
 
-# =============================================================================
-# def QW_xy(params, x, y):
-#     # Takes params, x, & y as arguments and returns Boolean (whether or not x,y is in QW emitting region) 
-#     # Checked 2026-03-24 
-#     nonemitting_thickness = 0.020e-6 
-#     
-#     if (params['ribbon_count'] == 0) & (params['notch_count'] == 0):
-#              return True 
-#          
-#     def ribbon_x(x):
-#         result = False 
-#         for r in range(params['ribbon_count']):
-#             result = result or (params['ribbon_centers'][r] - params['ribbon_widths'][r]/2 + nonemitting_thickness <= x and x <= params['ribbon_centers'][r] + params['ribbon_widths'][r]/2 - nonemitting_thickness)
-#             #result = result or (params['ribbon_centers'][r] - params['ribbon_widths'][r]/2 <= x and x <= params['ribbon_centers'][r] + params['ribbon_widths'][r]/2)
-#         return result 
-#     
-#     def notch_y(y):
-#         result = False 
-#         for n in range(params['notch_count']):
-#             result = result or (params['notch_centers'][n] - params['notch_widths'][n]/2 - nonemitting_thickness <= y and y <= params['notch_centers'][n] + params['notch_widths'][n]/2 + nonemitting_thickness)
-#             #result = result or (params['notch_centers'][n] - params['notch_widths'][n]/2 <= y and y <= params['notch_centers'][n] + params['notch_widths'][n]/2)
-#         return result 
-#     
-#     def notch_x(x):
-#         result = False 
-#         for r in range(params['ribbon_count']):
-#             result = result or (min_mesa_width - 2*nonemitting_thickness <= np.abs(params['ribbon_centers'][r] - x) and np.abs(params['ribbon_centers'][r] - x) <= params['ribbon_widths'][r]/2 - nonemitting_thickness)
-#         return result 
-#     
-#     if ribbon_x(x):
-#         if notch_y(y):
-#             if not notch_x(x):
-#                 return True 
-#         else: 
-#             return True 
-#     return False 
-# =============================================================================
+def superlattice_xy(params, x, y):
+    # Takes params, x, & y as arguments and returns Boolean (whether or not x,y is in superlattice region) 
+    # Checked _________
+    nonabsorbing_thickness = 0.020e-6 # The exact thickness would need to be experimentally determined
+    
+    if (params['ribbon_count'] == 0) & (params['notch_count'] == 0):
+             return True 
+         
+    def ribbon_x(x):
+        result = False 
+        for r in range(params['ribbon_count']):
+            result = result or (params['ribbon_centers'][r] - params['ribbon_widths'][r]/2 + nonabsorbing_thickness <= x and x <= params['ribbon_centers'][r] + params['ribbon_widths'][r]/2 - nonabsorbing_thickness)
+            #result = result or (params['ribbon_centers'][r] - params['ribbon_widths'][r]/2 <= x and x <= params['ribbon_centers'][r] + params['ribbon_widths'][r]/2)
+        return result 
+    
+    def notch_y(y):
+        result = False 
+        for n in range(params['notch_count']):
+            result = result or (params['notch_centers'][n] - params['notch_widths'][n]/2 - nonabsorbing_thickness <= y and y <= params['notch_centers'][n] + params['notch_widths'][n]/2 + nonabsorbing_thickness)
+            #result = result or (params['notch_centers'][n] - params['notch_widths'][n]/2 <= y and y <= params['notch_centers'][n] + params['notch_widths'][n]/2)
+        return result 
+    
+    def notch_x(x):
+        result = False 
+        for r in range(params['ribbon_count']):
+            result = result or (min_mesa_width - 2*nonabsorbing_thickness <= np.abs(params['ribbon_centers'][r] - x) and np.abs(params['ribbon_centers'][r] - x) <= params['ribbon_widths'][r]/2 - nonabsorbing_thickness)
+        return result 
+    
+    if ribbon_x(x):
+        if notch_y(y):
+            if not notch_x(x):
+                return True 
+        else: 
+            return True 
+    return False 
 
 
 def RCWA_sim(params):
@@ -195,8 +193,8 @@ def RCWA_sim(params):
     # Es['E'] and E['E'] are indexed as x, y, z, lambda, angle, vector-components  
     for xi in range(len(Es['x'])):
         for yi in range(len(Es['y'])):
-            for zi in range(len(Es['z'])): 
-                if True: #QW_xy(params, Es['x'][xi], Es['y'][yi]):
+            if superlattice_xy(params, Es['x'][xi], Es['y'][yi]):
+                for zi in range(len(Es['z'])): 
                     # Calculate absorption 
                     Es_abs2 = (np.abs(Es['E'][xi,yi,zi,:,0,0])**2 
                                + np.abs(Es['E'][xi,yi,zi,:,0,1])**2 
@@ -209,7 +207,7 @@ def RCWA_sim(params):
     
     return A_lambda_pol / P_inc 
 
-def FoM(params, queue=None, plot=False):
+def main(params, queue=None, plot=False):
     
     A_lambda_pol = RCWA_sim(params)
     wavelengths = params['wavelength_range'] 
@@ -220,47 +218,42 @@ def FoM(params, queue=None, plot=False):
     
     
     if plot: 
-        plt.plot(1e9*wavelengths, A_lambda_pol[0], label='s-pol')
-        plt.plot(1e9*wavelengths, A_lambda_pol[1], label='p-pol')
-        plt.xlabel('Wavelength (nm)')
-        plt.ylabel('Absorption')
-        plt.title('Absorption vs wavelength')
-        plt.show()
+        plt.plot(params['wavelength_range']*1e6, A_lambda_pol[:,0], label='s-pol')
+        plt.plot(params['wavelength_range']*1e6, A_lambda_pol[:,1], label='p-pol')
+        plt.xlabel('Wavelength (um)')
+        plt.ylabel("Absorbance")
+        plt.legend() 
+        plt.show() 
     
-    return A_lambda_pol
+    return #float(np.mean(A_lambda_pol)) # This can be changed later, if you want a different FoM 
 
     
-# Test devices
-params = {
-          'Fourier_N' : 50, 
-          'xy_mesh' : 90, 
-          'z_mesh' : 55, 
-          'k_mesh' : 24, 
-          'wavelength_range' : np.linspace(8e-6, 9.5e-6, 100), 
-          'layer_count' : 3, 
-          'layer_names' : ['substrate', 'superlattice', 'superstrate'], # reciprocity plane waves are incident from first layer 
-          'layer_thicknesses' : [1e-6, 0.500e-6, 0.200e-6], # SL thicknesses can be variable param 
-          'layer_materials' : ["GaSb - custom", "InSb30/GaSb70 superlattice", "Au (Gold) - Palik"],
-          'layer_is_etched' : [False, True, True], # whether or not to etch through each layer to make the ribbons 
-          'ribbon_count' : 1, # number of nanoribbons to etch 
-          'notch_count' : 1, 
-          # The params below will be incorporated into 'var' as fixed or range parameters, then passed to FoM in evaluate() 
-          'period' : [1.0e-6, 1.0e-6], # um 
-          'ribbon_centers' : [0.5e-6], 
-          'ribbon_widths' : [250e-9], 
-          'notch_centers' : [0.5e-6], 
-          'notch_widths' : [250e-9], 
-          }
-
-if len(params['period']) == 0:
-    params['period'] = [params['wavelength_range'][-1], params['wavelength_range'][-1]]
-    
-
-A_lambda_pol = FoM(params) 
-
-plt.plot(params['wavelength_range']*1e6, A_lambda_pol[:,0], label='s-pol')
-plt.plot(params['wavelength_range']*1e6, A_lambda_pol[:,1], label='p-pol')
-plt.xlabel('Wavelength (um)')
-plt.ylabel("Absorbance")
-plt.legend() 
-plt.show() 
+# =============================================================================
+# # Test devices
+# params = {
+#           'Fourier_N' : 50, 
+#           'xy_mesh' : 90, 
+#           'z_mesh' : 55, 
+#           'k_mesh' : 24, 
+#           'wavelength_range' : np.linspace(8e-6, 9.5e-6, 100), 
+#           'layer_count' : 3, 
+#           'layer_names' : ['substrate', 'superlattice', 'superstrate'], # reciprocity plane waves are incident from first layer 
+#           'layer_thicknesses' : [1e-6, 0.500e-6, 0.200e-6], # SL thicknesses can be variable param 
+#           'layer_materials' : ["GaSb - custom", "InSb30/GaSb70 superlattice", "Au (Gold) - Palik"],
+#           'layer_is_etched' : [False, True, True], # whether or not to etch through each layer to make the ribbons 
+#           'ribbon_count' : 1, # number of nanoribbons to etch 
+#           'notch_count' : 1, 
+#           # The params below will be incorporated into 'var' as fixed or range parameters, then passed to FoM in evaluate() 
+#           'period' : [1.0e-6, 1.0e-6], # um 
+#           'ribbon_centers' : [0.5e-6], 
+#           'ribbon_widths' : [250e-9], 
+#           'notch_centers' : [0.5e-6], 
+#           'notch_widths' : [250e-9], 
+#           }
+# 
+# if len(params['period']) == 0:
+#     params['period'] = [params['wavelength_range'][-1], params['wavelength_range'][-1]]
+#     
+# 
+# test_FoM = main(params, plot=True) 
+# =============================================================================
